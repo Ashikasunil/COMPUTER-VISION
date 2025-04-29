@@ -93,8 +93,7 @@ if ct_img:
     orig_size = ct_gray.size
     tensor = transforms.ToTensor()(ct_gray).unsqueeze(0)
     gt_bin = np.zeros(orig_size[::-1], dtype=np.uint8)  # placeholder GT mask for visual layout
-    gt_bin = (gt_np > 128).astype(np.uint8)
-
+    
     if model is not None:
         with torch.no_grad():
             pred = model(tensor).squeeze().cpu().numpy()
@@ -123,9 +122,8 @@ if ct_img:
     precision = (np.logical_and(pred_bin, gt_bin).sum()) / (pred_bin.sum() + 1e-6)
     recall = (np.logical_and(pred_bin, gt_bin).sum()) / (gt_bin.sum() + 1e-6)
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
-    st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
     st.markdown("- **IoU Score**: _Ground truth not provided_")
-    st.markdown("- **Dice Score**: _Ground truth not provided_")**: {recall:.4f}")
+    st.markdown("- **Dice Score**: _Ground truth not provided_")
 
     features = {
         "is_malignant": confidence > 80,
@@ -143,6 +141,7 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
 
 
 
