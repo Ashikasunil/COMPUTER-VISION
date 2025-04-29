@@ -154,3 +154,4 @@ if ct_img:
             st.markdown(f"- {h}")
 
 st.markdown("<div class='footer'>Built with ❤️ by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
