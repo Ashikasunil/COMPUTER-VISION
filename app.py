@@ -114,7 +114,7 @@ if ct_img:
     c1.image(ct_gray, caption="Original CT Scan", use_column_width=True)
     c2.image(gt_mask, caption="Ground Truth Mask", use_column_width=True)
     c3.image(pred_img, caption="Predicted Mask", use_column_width=True)
-    st.image(overlay, caption="Overlay", use_column_width=True)
+    st.image(Image.fromarray(overlay).resize((192, 192)), caption="Overlay", use_column_width=False)
 
     st.subheader("📊 Metrics")
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
