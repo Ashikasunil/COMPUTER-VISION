@@ -1,3 +1,5 @@
+# Lung CT Web App – CT Upload Only + Metrics + Chatbot + Ground Truth + Prediction
+
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -16,7 +18,7 @@ st.markdown("""
 .footer {text-align: center; font-size: 13px; color: gray; margin-top: 40px;}
 </style>
 """, unsafe_allow_html=True)
-st.markdown("<div class='big-title'>🫁 Lung CT Segmentation and Diagnosis Assistant</div>", unsafe_allow_html=True)
+st.markdown("<div class='big-title'>🫁 Lung CT Segmentation and Metrics Assistant</div>", unsafe_allow_html=True)
 
 class AdaptiveEdgeAttention(nn.Module):
     def __init__(self, in_channels):
@@ -75,45 +77,41 @@ def load_model():
 
 model = load_model()
 
-# Upload CT scan + GT mask
-st.header("📤 Upload Images")
-ct_img = st.file_uploader("Upload CT Scan (Grayscale)", type=["png", "jpg", "jpeg"], key="ct")
-gt_img = st.file_uploader("Upload Ground Truth Mask (Optional)", type=["png", "jpg"], key="gt")
+# Upload CT scan (with GT mask as second channel)
+st.header("📤 Upload Lung CT Image")
+ct_img = st.file_uploader("Upload CT scan image (single image where Red=GT, Green=CT)", type=["png", "jpg", "jpeg"])
 
 if ct_img:
-    img = Image.open(ct_img).convert("L")
-    tensor = transforms.ToTensor()(img).unsqueeze(0)
+    color_img = Image.open(ct_img).convert("RGB").resize((256, 256))
+    ct_gray = color_img.getchannel("G").convert("L")  # Green channel = original image
+    gt_mask = color_img.getchannel("R").convert("L")  # Red channel = GT mask
+
+    tensor = transforms.ToTensor()(ct_gray).unsqueeze(0)
+    gt_np = np.array(gt_mask.resize((256, 256)))
+    gt_bin = (gt_np > 128).astype(np.uint8)
 
     with torch.no_grad():
         pred = model(tensor).squeeze().numpy()
         pred_bin = (pred > 0.5).astype(np.uint8)
 
-    pred_img = Image.fromarray(pred_bin * 255).resize(img.size)
-    overlay = np.array(img.convert("RGB"))
-    overlay[pred_img > 128] = [255, 0, 0]
+    pred_img = Image.fromarray(pred_bin * 255)
+    overlay = np.array(ct_gray.convert("RGB"))
+    overlay[pred_bin > 0] = [255, 0, 0]  # Highlight prediction
 
-    if gt_img:
-        gt = Image.open(gt_img).convert("L").resize(img.size)
-        gt_arr = (np.array(gt) > 128).astype(np.uint8)
-    else:
-        gt_arr = pred_bin
-
-    intersection = np.logical_and(pred_bin, gt_arr).sum()
-    union = np.logical_or(pred_bin, gt_arr).sum()
+    intersection = np.logical_and(pred_bin, gt_bin).sum()
+    union = np.logical_or(pred_bin, gt_bin).sum()
     iou = intersection / (union + 1e-6)
-    dice = (2 * intersection) / (pred_bin.sum() + gt_arr.sum() + 1e-6)
+    dice = (2 * intersection) / (pred_bin.sum() + gt_bin.sum() + 1e-6)
     confidence = float((pred > 0.75).mean() * 100)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.image(img, caption="Original CT", use_column_width=True)
-    if gt_img:
-        c2.image(gt, caption="Ground Truth Mask", use_column_width=True)
-    else:
-        c2.markdown("_No ground truth provided_ ✅")
+    st.subheader("🖼️ Results")
+    c1, c2, c3 = st.columns(3)
+    c1.image(ct_gray, caption="Original CT Scan", use_column_width=True)
+    c2.image(gt_mask, caption="Ground Truth Mask", use_column_width=True)
     c3.image(pred_img, caption="Predicted Mask", use_column_width=True)
-    c4.image(overlay, caption="Overlay", use_column_width=True)
+    st.image(overlay, caption="Overlay", use_column_width=True)
 
-    st.subheader("📊 Prediction Metrics")
+    st.subheader("📊 Metrics")
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
     st.markdown(f"- **IoU Score**: {iou:.4f}")
     st.markdown(f"- **Dice Score**: {dice:.4f}")
@@ -128,21 +126,9 @@ if ct_img:
     st.subheader("📝 AI Summary")
     st.success(generate_summary(features))
 
-    st.subheader("🤖 Ask Medical Questions")
-    default_qs = ["Is this dangerous?", "Can this be treated?", "What’s the confidence?", "Should I see a doctor?"]
-    question = st.selectbox("Select or ask your question:", default_qs)
-    if st.button("Ask Question"):
-        st.info(generate_response(question, features))
+    st.subheader("💬 Ask a Question")
+    user_q = st.text_input("Type your question about this CT scan result:")
+    if user_q:
+        st.info(generate_response(user_q, features))
 
-    custom_q = st.text_input("Or type your own:")
-    if custom_q:
-        st.info(generate_response(custom_q, features))
-
-    st.subheader("🏥 Nearby Hospitals")
-    pincode = st.text_input("Enter Tamil Nadu Pincode")
-    if pincode:
-        results = get_hospitals_by_pincode(pincode)
-        for h in results:
-            st.markdown(f"- {h}")
-
-st.markdown("<div class='footer'>Built with ❤️ by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
