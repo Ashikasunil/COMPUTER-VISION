@@ -95,11 +95,12 @@ if ct_img:
     gt_bin = np.zeros(orig_size[::-1], dtype=np.uint8)  # placeholder GT mask for visual layout
     
     if model is not None:
+        import cv2
         with torch.no_grad():
             pred = model(tensor).squeeze().cpu().numpy()
             pred_resized = np.array(Image.fromarray(pred * 255).resize(orig_size).convert("L")) / 255.0
-            from skimage.filters import threshold_otsu
-            threshold = threshold_otsu(pred_resized)
+            gray_uint8 = (pred_resized * 255).astype(np.uint8)
+            threshold, _ = cv2.threshold(gray_uint8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             pred_bin = (pred_resized > threshold).astype(np.uint8)
         
 
@@ -141,6 +142,7 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
 
 
 
