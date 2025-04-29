@@ -86,20 +86,26 @@ st.header("📤 Upload Lung CT Image")
 ct_img = st.file_uploader("Upload CT scan image (single image where Red=GT, Green=CT)", type=["png", "jpg", "jpeg"])
 
 if ct_img:
-    color_img = Image.open(ct_img).convert("RGB").resize((256, 256))
+    color_img = Image.open(ct_img).convert("RGB")  # Use full resolution
     ct_gray = color_img.getchannel("G").convert("L")  # Green channel = original image
     gt_mask = color_img.getchannel("R").convert("L")  # Red channel = GT mask
 
+    orig_size = ct_gray.size
     tensor = transforms.ToTensor()(ct_gray).unsqueeze(0)
-    gt_np = np.array(gt_mask.resize((256, 256)))
+    gt_mask_resized = gt_mask.resize(orig_size)
+    gt_np = np.array(gt_mask_resized)
     gt_bin = (gt_np > 128).astype(np.uint8)
 
     if model is not None:
         with torch.no_grad():
-            pred = model(tensor).squeeze().numpy()
-            pred_bin = (pred > 0.5).astype(np.uint8)
+            pred = model(tensor).squeeze().cpu().numpy()
+            pred_resized = np.array(Image.fromarray(pred * 255).resize(orig_size).convert("L")) / 255.0
+            from skimage.filters import threshold_otsu
+            threshold = threshold_otsu(pred_resized)
+            pred_bin = (pred_resized > threshold).astype(np.uint8)
+        
 
-    pred_img = Image.fromarray(pred_bin * 255)
+    pred_img = Image.fromarray((pred_bin * 255).astype(np.uint8))
     overlay = np.array(ct_gray.convert("RGB"))
     overlay[pred_bin > 0] = [255, 0, 0]  # Highlight prediction
 
@@ -107,7 +113,7 @@ if ct_img:
     union = np.logical_or(pred_bin, gt_bin).sum()
     iou = intersection / (union + 1e-6)
     dice = (2 * intersection) / (pred_bin.sum() + gt_bin.sum() + 1e-6)
-    confidence = float((pred > 0.75).mean() * 100)
+    confidence = float((pred_resized > threshold).mean() * 100)
 
     st.subheader("🖼️ Results")
     c1, c2, c3 = st.columns(3)
@@ -117,9 +123,13 @@ if ct_img:
     st.image(Image.fromarray(overlay).resize((192, 192)), caption="Overlay", use_column_width=False)
 
     st.subheader("📊 Metrics")
+    precision = (np.logical_and(pred_bin, gt_bin).sum()) / (pred_bin.sum() + 1e-6)
+    recall = (np.logical_and(pred_bin, gt_bin).sum()) / (gt_bin.sum() + 1e-6)
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
     st.markdown(f"- **IoU Score**: {iou:.4f}")
     st.markdown(f"- **Dice Score**: {dice:.4f}")
+    st.markdown(f"- **Precision**: {precision:.4f}")
+    st.markdown(f"- **Recall**: {recall:.4f}")
 
     features = {
         "is_malignant": confidence > 80,
@@ -137,4 +147,5 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
 
