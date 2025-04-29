@@ -96,8 +96,8 @@ if ct_img:
 
     if model is not None:
         with torch.no_grad():
-        pred = model(tensor).squeeze().numpy()
-        pred_bin = (pred > 0.5).astype(np.uint8)
+            pred = model(tensor).squeeze().numpy()
+            pred_bin = (pred > 0.5).astype(np.uint8)
 
     pred_img = Image.fromarray(pred_bin * 255)
     overlay = np.array(ct_gray.convert("RGB"))
