@@ -45,7 +45,9 @@ class DecoderBlock(nn.Module):
 class MobileViT_QRC_U_Net(nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
-        self.encoder = timm.create_model('mobilevit_xxs', pretrained=True, features_only=True, in_chans=in_channels)
+        self.encoder = timm.create_model(
+    'mobilevit_xxs', pretrained=False, features_only=True, in_chans=in_channels
+)
         chs = self.encoder.feature_info.channels()
         self.bridge = AdaptiveEdgeAttention(chs[-1])
         self.up4 = nn.ConvTranspose2d(chs[-1], chs[-2], 2, 2)
