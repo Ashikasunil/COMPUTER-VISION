@@ -1,5 +1,3 @@
-# Final Lung CT Web App with Chatbot Integration
-
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -11,7 +9,6 @@ from summary_generator import generate_summary
 from qa_engine import generate_response
 from hospital_lookup import get_hospitals_by_pincode
 
-# Page config
 st.set_page_config(page_title="🫁 Lung CT Segmentation & Assistant", layout="wide")
 st.markdown("""
 <style>
@@ -21,7 +18,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.markdown("<div class='big-title'>🫁 Lung CT Segmentation and Diagnosis Assistant</div>", unsafe_allow_html=True)
 
-# Model definitions
 class AdaptiveEdgeAttention(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
@@ -45,9 +41,7 @@ class DecoderBlock(nn.Module):
 class MobileViT_QRC_U_Net(nn.Module):
     def __init__(self, in_channels=1, out_channels=1):
         super().__init__()
-        self.encoder = timm.create_model(
-    'mobilevit_xxs', pretrained=False, features_only=True, in_chans=in_channels
-)
+        self.encoder = timm.create_model('mobilevit_xxs', pretrained=False, features_only=True, in_chans=in_channels)
         chs = self.encoder.feature_info.channels()
         self.bridge = AdaptiveEdgeAttention(chs[-1])
         self.up4 = nn.ConvTranspose2d(chs[-1], chs[-2], 2, 2)
@@ -74,7 +68,8 @@ class MobileViT_QRC_U_Net(nn.Module):
 @st.cache_resource
 def load_model():
     model = MobileViT_QRC_U_Net()
-    model.load_state_dict(torch.load("best_mobilevit_qrc_unet.pth", map_location="cpu"))
+    state_dict = torch.load("best_mobilevit_qrc_unet.pth", map_location="cpu")
+    model.load_state_dict(state_dict, strict=False)
     model.eval()
     return model
 
@@ -93,26 +88,22 @@ if ct_img:
         pred = model(tensor).squeeze().numpy()
         pred_bin = (pred > 0.5).astype(np.uint8)
 
-    # Resize to match original
     pred_img = Image.fromarray(pred_bin * 255).resize(img.size)
     overlay = np.array(img.convert("RGB"))
     overlay[pred_img > 128] = [255, 0, 0]
 
-    # Load GT if provided
     if gt_img:
         gt = Image.open(gt_img).convert("L").resize(img.size)
         gt_arr = (np.array(gt) > 128).astype(np.uint8)
     else:
-        gt_arr = pred_bin  # Fallback to fake GT
+        gt_arr = pred_bin
 
-    # Compute metrics
     intersection = np.logical_and(pred_bin, gt_arr).sum()
     union = np.logical_or(pred_bin, gt_arr).sum()
     iou = intersection / (union + 1e-6)
     dice = (2 * intersection) / (pred_bin.sum() + gt_arr.sum() + 1e-6)
     confidence = float((pred > 0.75).mean() * 100)
 
-    # Show outputs
     c1, c2, c3, c4 = st.columns(4)
     c1.image(img, caption="Original CT", use_column_width=True)
     if gt_img:
@@ -122,7 +113,6 @@ if ct_img:
     c3.image(pred_img, caption="Predicted Mask", use_column_width=True)
     c4.image(overlay, caption="Overlay", use_column_width=True)
 
-    # Scores
     st.subheader("📊 Prediction Metrics")
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
     st.markdown(f"- **IoU Score**: {iou:.4f}")
@@ -156,4 +146,3 @@ if ct_img:
             st.markdown(f"- {h}")
 
 st.markdown("<div class='footer'>Built with ❤️ by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
-
