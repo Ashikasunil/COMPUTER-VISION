@@ -69,11 +69,15 @@ class MobileViT_QRC_U_Net(nn.Module):
 
 @st.cache_resource
 def load_model():
-    model = MobileViT_QRC_U_Net()
-    state_dict = torch.load("best_mobilevit_qrc_unet.pth", map_location="cpu")
-    model.load_state_dict(state_dict, strict=False)
-    model.eval()
-    return model
+    try:
+        model = MobileViT_QRC_U_Net()
+        state_dict = torch.load("best_mobilevit_qrc_unet.pth", map_location="cpu")
+        model.load_state_dict(state_dict, strict=False)
+        model.eval()
+        return model
+    except Exception as e:
+        st.error(f"❌ Failed to load model: {e}")
+        return None
 
 model = load_model()
 
@@ -90,7 +94,8 @@ if ct_img:
     gt_np = np.array(gt_mask.resize((256, 256)))
     gt_bin = (gt_np > 128).astype(np.uint8)
 
-    with torch.no_grad():
+    if model is not None:
+        with torch.no_grad():
         pred = model(tensor).squeeze().numpy()
         pred_bin = (pred > 0.5).astype(np.uint8)
 
@@ -132,3 +137,4 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
