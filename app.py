@@ -81,56 +81,61 @@ def load_model():
 
 model = load_model()
 
-# Upload CT scan only (GT will be generated internally for display purposes)
+# Upload CT scan (with GT mask as second channel)
 st.header("📤 Upload Lung CT Image")
-ct_img = st.file_uploader("Upload a Lung CT scan (grayscale)", type=["png", "jpg", "jpeg"])
+ct_img = st.file_uploader("Upload CT scan image (single image where Red=GT, Green=CT)", type=["png", "jpg", "jpeg"])
 
 if ct_img:
     color_img = Image.open(ct_img).convert("RGB")  # Use full resolution
     ct_gray = color_img.getchannel("G").convert("L")  # Green channel = original image
-    gt_mask = None  # GT not uploaded; set to None
+    gt_mask = color_img.getchannel("R").convert("L")  # Red channel = GT mask
 
     orig_size = ct_gray.size
     tensor = transforms.ToTensor()(ct_gray).unsqueeze(0)
-    gt_bin = np.zeros(orig_size[::-1], dtype=np.uint8)  # placeholder GT mask for visual layout
-    
+    gt_mask_resized = gt_mask.resize(orig_size)
+    gt_np = np.array(gt_mask_resized)
+    gt_bin = (gt_np > 128).astype(np.uint8)
+
     if model is not None:
         with torch.no_grad():
-            st.write("Model loaded:", model is not None)
-            st.write("Input tensor shape:", tensor.shape)
             pred = model(tensor).squeeze().cpu().numpy()
-            st.write("Prediction min/max:", float(pred.min()), float(pred.max()))
             pred_resized = np.array(Image.fromarray(pred * 255).resize(orig_size).convert("L")) / 255.0
-            pred_bin = (pred_resized > 0.2).astype(np.uint8)
+            from skimage.filters import threshold_otsu
+            threshold = threshold_otsu(pred_resized)
+            pred_bin = (pred_resized > threshold).astype(np.uint8)
         
 
     pred_img = Image.fromarray((pred_bin * 255).astype(np.uint8))
     overlay = np.array(ct_gray.convert("RGB"))
     overlay[pred_bin > 0] = [255, 0, 0]  # Highlight prediction
 
-    confidence = float((pred_resized > 0.2).mean() * 100)
-    iou = 0.0
-    dice = 0.0
+    intersection = np.logical_and(pred_bin, gt_bin).sum()
+    union = np.logical_or(pred_bin, gt_bin).sum()
+    iou = intersection / (union + 1e-6)
+    dice = (2 * intersection) / (pred_bin.sum() + gt_bin.sum() + 1e-6)
+    confidence = float((pred_resized > threshold).mean() * 100)
+
     st.subheader("🖼️ Results")
     c1, c2, c3 = st.columns(3)
     c1.image(ct_gray, caption="Original CT Scan", use_column_width=True)
-    c2.image((pred_bin * 255).astype(np.uint8), caption="Predicted Mask", use_column_width=True)
-    overlay = np.array(ct_gray.convert("RGB"))
-    overlay[pred_bin > 0] = [255, 0, 0]
-    c3.image(Image.fromarray(overlay).resize((192, 192)), caption="Overlay", use_column_width=False)
+    c2.image(gt_mask, caption="Ground Truth Mask", use_column_width=True)
+    c3.image(pred_img, caption="Predicted Mask", use_column_width=True)
+    st.image(Image.fromarray(overlay).resize((192, 192)), caption="Overlay", use_column_width=False)
 
     st.subheader("📊 Metrics")
     precision = (np.logical_and(pred_bin, gt_bin).sum()) / (pred_bin.sum() + 1e-6)
     recall = (np.logical_and(pred_bin, gt_bin).sum()) / (gt_bin.sum() + 1e-6)
     st.markdown(f"- **Confidence Score**: {confidence:.2f}%")
-    st.markdown("- **IoU Score**: _Ground truth not provided_")
-    st.markdown("- **Dice Score**: _Ground truth not provided_")
+    st.markdown(f"- **IoU Score**: {iou:.4f}")
+    st.markdown(f"- **Dice Score**: {dice:.4f}")
+    st.markdown(f"- **Precision**: {precision:.4f}")
+    st.markdown(f"- **Recall**: {recall:.4f}")
 
     features = {
         "is_malignant": confidence > 80,
         "confidence_score": confidence,
-        "iou_score": None,
-        "dice_score": None
+        "iou_score": iou,
+        "dice_score": dice
     }
 
     st.subheader("📝 AI Summary")
