@@ -101,7 +101,7 @@ if ct_img:
             pred = model(tensor).squeeze().cpu().numpy()
             st.write("Prediction min/max:", float(pred.min()), float(pred.max()))
             pred_resized = np.array(Image.fromarray(pred * 255).resize(orig_size).convert("L")) / 255.0
-            pred_bin = (pred_resized > 0.2).astype(np.uint8)(pred_resized > threshold).astype(np.uint8)
+            pred_bin = (pred_resized > 0.2).astype(np.uint8)
         
 
     pred_img = Image.fromarray((pred_bin * 255).astype(np.uint8))
@@ -142,6 +142,7 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
 
 
 
