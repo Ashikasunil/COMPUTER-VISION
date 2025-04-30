@@ -95,20 +95,20 @@ if ct_img:
     gt_bin = np.zeros(orig_size[::-1], dtype=np.uint8)  # placeholder GT mask for visual layout
     
     if model is not None:
-        import cv2
         with torch.no_grad():
+            st.write("Model loaded:", model is not None)
+            st.write("Input tensor shape:", tensor.shape)
             pred = model(tensor).squeeze().cpu().numpy()
+            st.write("Prediction min/max:", float(pred.min()), float(pred.max()))
             pred_resized = np.array(Image.fromarray(pred * 255).resize(orig_size).convert("L")) / 255.0
-            gray_uint8 = (pred_resized * 255).astype(np.uint8)
-            threshold, _ = cv2.threshold(gray_uint8, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            pred_bin = (pred_resized > threshold).astype(np.uint8)
+            pred_bin = (pred_resized > 0.2).astype(np.uint8)(pred_resized > threshold).astype(np.uint8)
         
 
     pred_img = Image.fromarray((pred_bin * 255).astype(np.uint8))
     overlay = np.array(ct_gray.convert("RGB"))
     overlay[pred_bin > 0] = [255, 0, 0]  # Highlight prediction
 
-    confidence = float((pred_resized > threshold).mean() * 100)
+    confidence = float((pred_resized > 0.2).mean() * 100)
     iou = 0.0
     dice = 0.0
     st.subheader("🖼️ Results")
@@ -142,6 +142,7 @@ if ct_img:
         st.info(generate_response(user_q, features))
 
 st.markdown("<div class='footer'>Built by Team 2 • QRC-U-Net • Streamlit • PyTorch</div>", unsafe_allow_html=True)
+
 
 
 
